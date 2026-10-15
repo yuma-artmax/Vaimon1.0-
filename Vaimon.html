@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ブラウザー内で動作するローカル作成・検索ツール">
+    <title>Vaimon 1.0</title>
+    <style>
+        :root {
+            color-scheme: light;
+            font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji";
+            color: #1a1a1a;
+            background: #fff;
+        }
+        * { box-sizing: border-box; }
+        body {
+            display: flex;
+            height: 100vh;
+            min-height: 0;
+            margin: 0;
+            overflow: hidden;
+            color: #0d0d0d;
+            background: #fff;
+        }
+        button, input { font: inherit; }
+        .sidebar {
+            display: flex;
+            flex: 0 0 260px;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 24px 16px;
+            border-right: 1px solid #e9ecef;
+            background: #f8f9fa;
+            z-index: 1;
+        }
+        .sidebar-top {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        .brand-zone {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-left: 8px;
+        }
+        .brand-title {
+            color: #000;
+            font-family: monospace;
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: 1px;
+        }
+        .system-dot, .btn-dot {
+            width: 8px;
+            height: 8px;
+            flex: 0 0 auto;
+            border-radius: 50%;
+        }
+        .system-dot {
+            background: #00c853;
+            box-shadow: 0 0 8px rgba(0, 200, 83, .55);
+        }
+        .nav-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            padding: 10px 14px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: #495057;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: left;
+            transition: background .1s ease, color .1s ease, transform .1s ease;
+        }
+        .nav-item:hover { background: #e9ecef; color: #000; transform: translateX(2px); }
+        .nav-item.active { background: #000; color: #fff; }
+        .nav-item:focus-visible, .send-btn:focus-visible, input:focus-visible {
+            outline: 2px solid #555;
+            outline-offset: 2px;
+        }
+        .history-section {
+            min-height: 0;
+            flex: 1;
+            overflow-y: auto;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px dashed #dee2e6;
+        }
+        .history-title {
+            margin-bottom: 10px;
+            padding-left: 8px;
+            color: #868e96;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        .history-item {
+            display: block;
+            width: 100%;
+            overflow: hidden;
+            padding: 8px 12px;
+            border: 0;
+            border-radius: 6px;
+            background: transparent;
+            color: #495057;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 12px;
+            text-align: left;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .history-item:hover { background: #e9ecef; color: #000; }
+        .history-empty {
+            padding-left: 8px;
+            color: #adb5bd;
+            font-size: 11px;
+            font-style: italic;
+        }
+        .sidebar-footer {
+            padding-left: 8px;
+            color: #858584;
+            font-family: monospace;
+            font-size: 11px;
+        }
+        .main-content {
+            position: relative;
+            display: flex;
+            min-width: 0;
+            flex: 1;
+            flex-direction: column;
+            overflow-y: auto;
+            background: #fff;
+        }
+        .page {
+            display: none;
+            width: 100%;
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 60px 40px;
+        }
+        .page.active { display: block; }
+        h2 {
+            margin: 0 0 24px;
+            color: #000;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -.5px;
+        }
+        p { color: #37352f; font-size: 15px; line-height: 1.6; }
+        .page-home {
+            display: none;
+            width: 100%;
+            max-width: 760px;
+            height: 100%;
+            min-height: 0;
+            flex-direction: column;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+        .page-home.active { display: flex; }
+        .chat-space {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            gap: 24px;
+            overflow-y: auto;
+            padding: 20px 0;
+        }
+        .msg-row {
+            display: flex;
+            width: 100%;
+            animation: slide-up .25s ease-out;
+        }
+        @keyframes slide-up {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .msg-bubble {
+            max-width: 85%;
+            padding: 12px 18px;
+            font-size: 15px;
+            line-height: 1.6;
+            overflow-wrap: anywhere;
+        }
+        .msg-row.user { justify-content: flex-end; }
+        .msg-row.user .msg-bubble {
+            border-radius: 20px;
+            background: #f1f3f5;
+            color: #000;
+            white-space: pre-wrap;
+        }
+        .msg-row.vaimon .msg-bubble {
+            border-left: 3px solid #000;
+            background: transparent;
+            color: #000;
+            padding-left: 18px;
+        }
+        .msg-bubble .message-copy { display: block; }
+        .trigger-container {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+            margin-bottom: 16px;
+        }
+        .trigger-btn {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            max-width: 160px;
+            padding: 12px;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            background: #fff;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, .02);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 700;
+            transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+        }
+        .trigger-btn:hover {
+            transform: translateY(-3px);
+            border-color: #000;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, .06);
+        }
+        .trigger-btn:focus-visible {
+            outline: 2px solid #555;
+            outline-offset: 2px;
+        }
+        .btn-orange .btn-dot { background: #ff6b6b; box-shadow: 0 0 8px rgba(255, 107, 107, .6); }
+        .btn-green .btn-dot { background: #51cf66; box-shadow: 0 0 8px rgba(81, 207, 102, .6); }
+        .btn-blue .btn-dot { background: #339af0; box-shadow: 0 0 8px rgba(51, 154, 240, .6); }
+        .input-wrapper { position: relative; width: 100%; margin-bottom: 20px; }
+        .chat-input-container {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            padding: 6px 10px 6px 24px;
+            border: 1px solid #e9ecef;
+            border-radius: 24px;
+            background: #f8f9fa;
+            transition: border .15s ease, background .15s ease, box-shadow .15s ease;
+        }
+        .chat-input-container:focus-within {
+            border-color: #000;
+            background: #fff;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, .05);
+        }
+        input[type="text"] {
+            min-width: 0;
+            flex: 1;
+            padding: 14px 0;
+            border: 0;
+            outline: none;
+            background: transparent;
+            color: #000;
+            font-size: 15px;
+        }
+        .send-btn {
+            display: flex;
+            flex: 0 0 auto;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border: 0;
+            border-radius: 50%;
+            background: #000;
+            color: #fff;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background .1s ease, transform .1s ease;
+        }
+        .send-btn:hover { background: #212529; transform: scale(1.05); }
+        pre {
+            margin: 12px 0 0;
+            padding: 16px;
+            overflow-x: auto;
+            border-radius: 6px;
+            background: #1e1e1e;
+            color: #fff;
+            font-family: monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+        .doc-card {
+            margin-top: 10px;
+            padding: 16px;
+            border: 1px solid #efefee;
+            border-radius: 6px;
+            background: #fbfbfa;
+            font-size: 14px;
+        }
+        .notion-card {
+            margin-bottom: 16px;
+            padding: 20px;
+            border: 1px solid #efefee;
+            border-radius: 8px;
+            background: #fff;
+        }
+        .search-result {
+            padding: 12px 0;
+            border-bottom: 1px solid #e8e8e6;
+            overflow-wrap: anywhere;
+        }
+        .search-result:first-child { padding-top: 0; }
+        .search-result:last-child { padding-bottom: 0; border-bottom: 0; }
+        .search-result time { color: #858584; font-size: 12px; }
+        .search-preview { margin-top: 6px; white-space: pre-wrap; }
+        .notice, .storage-status { color: #666; font-size: 13px; }
+        .storage-status { margin-bottom: 0; }
+        @media (max-width: 640px) {
+            body { height: 100vh; height: 100dvh; flex-direction: column; }
+            .sidebar {
+                flex: 0 0 auto;
+                gap: 8px;
+                padding: 10px 12px;
+                border-right: 0;
+                border-bottom: 1px solid #efefee;
+            }
+            .sidebar-top { gap: 8px; }
+            .brand-title { font-size: 16px; }
+            .history-section { display: none; }
+            .nav-group {
+                flex-direction: row;
+                gap: 2px;
+                overflow-x: auto;
+            }
+            .nav-item {
+                width: auto;
+                flex: 0 0 auto;
+                padding: 8px;
+                font-size: 12px;
+            }
+            .sidebar-footer { display: none; }
+            .main-content { flex: 1; }
+            .page { padding: 32px 20px; }
+            .page-home { padding: 12px 16px; }
+            .chat-space { gap: 16px; padding: 12px 0; }
+            h2 { font-size: 24px; }
+            .msg-bubble { max-width: 94%; padding: 10px 12px; font-size: 14px; }
+            .notion-card { padding: 16px; }
+            .trigger-container { gap: 8px; }
+            .trigger-btn { padding: 10px 6px; font-size: 11px; }
+        }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-top">
+            <div class="brand-zone">
+                <div class="brand-title">Vaimon 1.0</div>
+                <div class="system-dot" role="img" aria-label="ローカル稼働中" title="ローカル稼働中"></div>
+            </div>
+            <nav class="nav-group" aria-label="メインナビゲーション">
+                <button class="nav-item active" type="button" data-page="home" aria-current="page">🏠 HOME</button>
+                <button class="nav-item" type="button" data-page="search">🔍 SEARCH</button>
+                <button class="nav-item" type="button" data-page="partners">👥 PARTNERS</button>
+                <button class="nav-item" type="button" data-page="settings">⚙️ SETTINGS</button>
+            </nav>
+        </div>
+        <section class="history-section" aria-label="作成履歴">
+            <div class="history-title">History Logs</div>
+            <div id="sidebarHistory" aria-live="polite">
+                <div class="history-empty">No logs yet</div>
+            </div>
+        </section>
+        <div class="sidebar-footer">v1.0 (Local Matrix)</div>
+    </aside>
+
+    <main class="main-content">
+        <section id="home" class="page-home active" aria-label="ホーム">
+            <div class="chat-space" id="chatSpace" role="log" aria-live="polite" aria-relevant="additions">
+                <div class="msg-row vaimon">
+                    <div class="msg-bubble">
+                        <strong>Vaimon 1.0</strong><br>
+                        <span class="message-copy">指示を待っているよ。キーワードに応じたテンプレートを作成します。</span>
+                        <span style="font-size:12px; color:#666;">（キーワード例：ウェブサイト、利用規約、資料、比較分析）</span>
+                    </div>
+                </div>
+            </div>
+            <div class="trigger-container" aria-label="クイック実行">
+                <button class="trigger-btn btn-orange" type="button" data-prompt="ウェブサイトを作って">
+                    <span class="btn-dot" aria-hidden="true"></span>ウェブサイト
+                </button>
+                <button class="trigger-btn btn-green" type="button" data-prompt="資料を作って">
+                    <span class="btn-dot" aria-hidden="true"></span>資料作成
+                </button>
+                <button class="trigger-btn btn-blue" type="button" data-prompt="比較分析をして">
+                    <span class="btn-dot" aria-hidden="true"></span>比較分析
+                </button>
+            </div>
+            <form class="input-wrapper" id="chatForm">
+                <div class="chat-input-container">
+                    <input type="text" id="chatInput" aria-label="Vaimonへの指示" placeholder="Vaimon 1.0 に指示を出す..." autocomplete="off">
+                    <button class="send-btn" type="submit" aria-label="送信">↑</button>
+                </div>
+            </form>
+        </section>
+
+        <section id="search" class="page" aria-labelledby="searchTitle" hidden>
+            <h2 id="searchTitle">SEARCH CENTER</h2>
+            <p>ホームのチャットで生成されたローカル履歴から、キーワードで検索します。</p>
+            <form id="searchForm" class="chat-input-container" style="background-color: #f4f4f4; border-radius: 8px; margin-bottom: 20px;">
+                <input type="text" id="searchInput" aria-label="検索キーワード" placeholder="検索キーワードを入力..." autocomplete="off">
+                <button class="send-btn" type="submit" style="border-radius: 4px; width: auto; padding: 0 15px; font-size: 13px;">検索</button>
+            </form>
+            <div id="searchResults" class="doc-card" aria-live="polite" aria-label="検索結果" hidden></div>
+        </section>
+
+        <section id="partners" class="page" aria-labelledby="partnersTitle" hidden>
+            <h2 id="partnersTitle">PARTNERS REGISTRY</h2>
+            <p>Vaimon 1.0 を支えるスマートな構成メンバーです。</p>
+            <div class="notion-card">
+                <strong style="font-size: 16px;">YOU (FOUNDER &amp; CEO)</strong>
+                <p style="margin: 8px 0 0; font-size: 14px; color: #4a4a4a;">このツールの利用者・作成者。</p>
+            </div>
+            <div class="notion-card">
+                <strong style="font-size: 16px;">VAIMON 1.0 (LOCAL PROGRAM)</strong>
+                <p style="margin: 8px 0 0; font-size: 14px; color: #4a4a4a;">入力キーワードを判定し、あらかじめ用意されたテンプレートを出力するブラウザープログラム。</p>
+            </div>
+        </section>
+
+        <section id="settings" class="page" aria-labelledby="settingsTitle" hidden>
+            <h2 id="settingsTitle">SETTINGS &amp; SYSTEM INFO</h2>
+            <div class="notion-card">
+                <strong style="font-size: 16px;">[ 名前の由来 : VAIMON ]</strong>
+                <pre>V   - Visualize （ウェブや書類を形にする）
+A   - Analyze   （データを比較・整理する）
+I   - Innovate  （アイデアのたたき台を作る）
+MON - Monster   （ローカルで動くツール）</pre>
+            </div>
+            <div class="notion-card">
+                <strong>データとプライバシー</strong>
+                <p class="notice">作成した履歴はこのブラウザーのlocalStorageに保存されます。サーバーへの送信は行いません。共有端末では他の利用者が履歴を見られる場合があるため、機密情報を入力しないでください。</p>
+                <p class="storage-status" id="storageStatus" role="status"></p>
+            </div>
+        </section>
+    </main>
+
+    <script>
+    (() => {
+        "use strict";
+
+        const STORAGE_KEY = "vaimon-system-1.0.logs";
+        const chatSpace = document.getElementById("chatSpace");
+        const chatInput = document.getElementById("chatInput");
+        const searchInput = document.getElementById("searchInput");
+        const searchResults = document.getElementById("searchResults");
+        const storageStatus = document.getElementById("storageStatus");
+        const sidebarHistory = document.getElementById("sidebarHistory");
+        const pages = [...document.querySelectorAll(".page, .page-home")];
+        const navItems = [...document.querySelectorAll(".nav-item")];
+        let localDataLogs = loadLogs();
+
+        function loadLogs() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (!saved) return [];
+                const parsed = JSON.parse(saved);
+                if (!Array.isArray(parsed)) throw new Error("履歴データの形式が不正です。");
+                return parsed.filter((item) =>
+                    item &&
+                    typeof item.prompt === "string" &&
+                    typeof item.category === "string" &&
+                    typeof item.output === "string" &&
+                    typeof item.createdAt === "string"
+                );
+            } catch (error) {
+                console.error("VAIMON: 履歴を読み込めませんでした。", error);
+                storageStatus.textContent = "履歴を読み込めませんでした。ブラウザーの保存領域を確認してください。";
+                return [];
+            }
+        }
+
+        function saveLogs() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(localDataLogs));
+                storageStatus.textContent = `履歴はこのブラウザーに保存されています（${localDataLogs.length}件）。`;
+            } catch (error) {
+                console.error("VAIMON: 履歴を保存できませんでした。", error);
+                storageStatus.textContent = "履歴を保存できませんでした。ブラウザーの保存領域や空き容量を確認してください。";
+            }
+        }
+
+        function renderHistory() {
+            sidebarHistory.replaceChildren();
+            if (localDataLogs.length === 0) {
+                const empty = document.createElement("div");
+                empty.className = "history-empty";
+                empty.textContent = "No logs yet";
+                sidebarHistory.append(empty);
+                return;
+            }
+
+            localDataLogs.slice(-30).reverse().forEach((entry) => {
+                const button = document.createElement("button");
+                button.className = "history-item";
+                button.type = "button";
+                button.textContent = entry.prompt;
+                button.title = `[${entry.category}] ${entry.prompt}`;
+                button.addEventListener("click", () => {
+                    switchPage("home");
+                    addMessage("user", "あなた", entry.prompt);
+                    addMessage("vaimon", `Vaimon 1.0 — ${entry.category} (HISTORY)`, "保存済みの出力です。", entry.output);
+                });
+                sidebarHistory.append(button);
+            });
+        }
+
+        function switchPage(pageId) {
+            pages.forEach((page) => {
+                const isActive = page.id === pageId;
+                page.hidden = !isActive;
+                page.classList.toggle("active", isActive);
+            });
+            navItems.forEach((item) => {
+                const isActive = item.dataset.page === pageId;
+                item.classList.toggle("active", isActive);
+                if (isActive) item.setAttribute("aria-current", "page");
+                else item.removeAttribute("aria-current");
+            });
+            if (pageId === "search") searchInput.focus();
+        }
+
+        function makeResult(text) {
+            const normalized = text.toLocaleLowerCase("ja");
+            if (normalized.includes("ウェブサイト") || normalized.includes("ホームページ") || normalized.includes("プロフィール") || normalized.includes("web")) {
+                return {
+                    category: "ウェブサイト",
+                    summary: "プロフィールWebサイトのHTMLひな形です。名前や説明を編集して使ってください。",
+                    output: `<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>プロフィール</title>
+<main>
+  <h1>あなたの名前</h1>
+  <p>自己紹介をここに書きます。</p>
+  <h2>好きなこと</h2>
+  <p>趣味や取り組んでいることを紹介します。</p>
+</main>
+</html>`
+                };
+            }
+            if (normalized.includes("利用規約") || normalized.includes("規約")) {
+                return {
+                    category: "利用規約",
+                    summary: "利用規約のたたき台です。公開・運用前にサービスの実態に合わせて確認してください。これは法的助言ではありません。",
+                    output: `利用規約（案）
+
+第1条（適用）
+本規約は、本サービスの利用条件を定めるものです。
+
+第2条（利用上の注意）
+利用者は、法令および公序良俗に反する目的で本サービスを利用しないものとします。
+
+第3条（内容の変更・停止）
+運営者は、必要に応じて本サービスの内容を変更または停止することがあります。
+
+第4条（免責）
+本サービスの利用に関する責任の範囲は、適用される法令に従うものとします。
+
+制定日：[日付]
+運営者：[運営者名]`
+                };
+            }
+            if (normalized.includes("資料") || normalized.includes("企画") || normalized.includes("計画")) {
+                return {
+                    category: "資料",
+                    summary: "企画・説明資料の構成テンプレートです。各項目を具体的な情報で埋めてください。",
+                    output: `タイトル：[企画・資料のタイトル]
+
+1. 目的
+   この取り組みで解決したい課題や目標：
+
+2. 対象
+   想定する利用者・読者：
+
+3. 提案内容
+   実施すること・提供する価値：
+
+4. 進め方
+   手順、担当、スケジュール：
+
+5. 必要なもの
+   人員、費用、道具、確認事項：
+
+6. 成功の確認方法
+   成果をどのように測るか：`
+                };
+            }
+            if (normalized.includes("比較") || normalized.includes("分析")) {
+                return {
+                    category: "比較分析",
+                    summary: "比較分析の記入テンプレートです。対象の事実や根拠を入力してから判断してください。",
+                    output: `比較するテーマ：[テーマ]
+
+観点             対象A             対象B             メモ・根拠
+費用             [確認する]        [確認する]        [出典・日付]
+機能             [確認する]        [確認する]        [出典・日付]
+使いやすさ       [評価する]        [評価する]        [評価方法]
+注意点           [確認する]        [確認する]        [出典・日付]
+
+まとめ：
+・目的に合う点：
+・追加で確認すること：
+・判断（根拠を添える）：`
+                };
+            }
+            return {
+                category: "一般",
+                summary: "キーワードに合うひな形を特定できませんでした。例のキーワードを使うか、「ウェブサイト」「利用規約」「資料」「比較分析」のいずれかを入力してください。",
+                output: ""
+            };
+        }
+
+        function addMessage(kind, label, text, output) {
+            const row = document.createElement("div");
+            row.className = `msg-row ${kind}`;
+            const bubble = document.createElement("div");
+            bubble.className = "msg-bubble";
+            const heading = document.createElement("strong");
+            heading.textContent = label;
+            const copy = document.createElement("span");
+            copy.className = "message-copy";
+            copy.textContent = text;
+            bubble.append(heading, document.createElement("br"), copy);
+            if (output) {
+                const pre = document.createElement("pre");
+                pre.textContent = output;
+                bubble.append(pre);
+            }
+            row.append(bubble);
+            chatSpace.append(row);
+            chatSpace.scrollTop = chatSpace.scrollHeight;
+        }
+
+        function sendMessage(text) {
+            const prompt = text.trim();
+            if (!prompt) return;
+
+            addMessage("user", "あなた", prompt);
+            chatInput.value = "";
+            window.setTimeout(() => {
+                const result = makeResult(prompt);
+                addMessage("vaimon", `Vaimon 1.0 — ${result.category}`, result.summary, result.output);
+                localDataLogs.push({
+                    prompt,
+                    category: result.category,
+                    output: result.output || result.summary,
+                    createdAt: new Date().toISOString()
+                });
+                saveLogs();
+                renderHistory();
+                if (searchInput.value.trim()) runSearch(searchInput.value);
+            }, 10);
+        }
+
+        function runSearch(query) {
+            const term = query.trim().toLocaleLowerCase("ja");
+            searchResults.replaceChildren();
+            searchResults.hidden = false;
+
+            if (!term) {
+                searchResults.textContent = "検索キーワードを入力してください。";
+                return;
+            }
+            const matches = localDataLogs.filter((entry) =>
+                `${entry.category}\n${entry.prompt}\n${entry.output}`.toLocaleLowerCase("ja").includes(term)
+            ).reverse();
+
+            if (matches.length === 0) {
+                searchResults.textContent = "一致する履歴はありません。ホームでテンプレートを作成してから検索してください。";
+                return;
+            }
+
+            matches.forEach((entry) => {
+                const result = document.createElement("article");
+                result.className = "search-result";
+                const title = document.createElement("strong");
+                title.textContent = `[${entry.category}] ${entry.prompt}`;
+                const date = document.createElement("time");
+                date.dateTime = entry.createdAt;
+                const parsedDate = new Date(entry.createdAt);
+                date.textContent = Number.isNaN(parsedDate.getTime()) ? entry.createdAt : parsedDate.toLocaleString("ja-JP");
+                const preview = document.createElement("div");
+                preview.className = "search-preview";
+                preview.textContent = entry.output.length > 240 ? `${entry.output.slice(0, 240)}…` : entry.output;
+                result.append(title, document.createElement("br"), date, preview);
+                searchResults.append(result);
+            });
+        }
+
+        navItems.forEach((item) => {
+            item.addEventListener("click", () => switchPage(item.dataset.page));
+        });
+        document.querySelectorAll(".trigger-btn").forEach((button) => {
+            button.addEventListener("click", () => sendMessage(button.dataset.prompt));
+        });
+        document.getElementById("chatForm").addEventListener("submit", (event) => {
+            event.preventDefault();
+            sendMessage(chatInput.value);
+        });
+        document.getElementById("searchForm").addEventListener("submit", (event) => {
+            event.preventDefault();
+            runSearch(searchInput.value);
+        });
+
+        storageStatus.textContent = localDataLogs.length
+            ? `保存済みの履歴: ${localDataLogs.length}件`
+            : "作成した履歴はこのブラウザーに保存されます。";
+        renderHistory();
+    })();
+    </script>
+</body>
+</html>
